@@ -131,6 +131,13 @@ const AkiApp = (() => {
     $('btn-start-scan')?.addEventListener('click', () => goTo('nation'));
     $('btn-explore-recipes')?.addEventListener('click', () => goTo('recipe'));
     $('btn-3d-kitchen')?.addEventListener('click', () => {
+      goTo('kitchen3d');
+      requestAnimationFrame(() => {
+        const container = document.getElementById('kitchen3d-container');
+        if (container && window.launchDemoKitchen) window.launchDemoKitchen(container);
+      });
+    });
+    $('btn-3d-kitchen-upload')?.addEventListener('click', () => {
       state.mode3d = true;
       document.getElementById('file-input')?.click();
     });

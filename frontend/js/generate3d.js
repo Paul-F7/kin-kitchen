@@ -520,6 +520,23 @@ function addGenerate3dButton(imageUrl, boundingBoxes) {
   container.appendChild(section);
 }
 
-// Expose to global scope for upload.js
+// ── Demo kitchen — Three Sisters preset, no upload required ──────────────────
+// Mirrors the DEMO_PRESETS.threesisters in backend/routes/upload.js.
+// Ingredients must have matching GLB files in /assets/3d/.
+const DEMO_PRESET_INGREDIENTS = [
+  { name: 'butternut-squash', confidence: 1 },
+  { name: 'canned-beans',     confidence: 1 },
+  { name: 'canned-corn',      confidence: 1 },
+  { name: 'chicken-stock',    confidence: 1 },
+  { name: 'onion',            confidence: 1 },
+  { name: 'garlic',           confidence: 1 },
+];
+
+function launchDemoKitchen(container) {
+  handleGenerate3d('', DEMO_PRESET_INGREDIENTS, container);
+}
+
+// Expose to global scope for upload.js and app.js
 window.addGenerate3dButton = addGenerate3dButton;
-window.handleGenerate3d = handleGenerate3d;
+window.handleGenerate3d   = handleGenerate3d;
+window.launchDemoKitchen  = launchDemoKitchen;
