@@ -1014,7 +1014,10 @@ body {
 /* ── SCREEN 7: STORY ─────────────────────────────── */
 .screen-story {
   background: var(--charcoal);
-  padding: 60px 32px;
+  padding: 60px 32px 96px;
+  height: calc(100vh - 76px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .story-ornament {

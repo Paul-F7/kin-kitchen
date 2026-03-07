@@ -7,6 +7,49 @@
   const closeBtn = modal?.querySelector('.story-modal__close');
   const backdrop = modal?.querySelector('.story-modal__backdrop');
 
+  // ── Generate Video (fake) ──────────────────────────────────────────────
+  const generateVideoBtn = document.getElementById('story-generate-video-btn');
+  const videoWrap        = document.getElementById('story-video-wrap');
+  const videoLoading     = document.getElementById('story-video-loading');
+  const shimmerText      = document.getElementById('story-shimmer-text');
+  const shimmerFill      = document.getElementById('shimmer-bar-fill');
+  const storyVideo       = document.getElementById('story-video');
+
+  const shimmerPhrases = [
+    'Generating your video story…',
+    'Weaving the narrative…',
+    'Drawing from the land…',
+    'Honouring the teaching…',
+    'Almost ready…',
+  ];
+
+  if (generateVideoBtn) {
+    generateVideoBtn.addEventListener('click', function () {
+      generateVideoBtn.disabled = true;
+      videoWrap.style.display = 'block';
+      videoLoading.style.display = 'flex';
+      storyVideo.style.display = 'none';
+
+      shimmerFill.style.animation = 'none';
+      void shimmerFill.offsetWidth;
+      shimmerFill.style.animation = '';
+
+      let phraseIdx = 0;
+      shimmerText.textContent = shimmerPhrases[phraseIdx];
+      const phraseTimer = setInterval(function () {
+        phraseIdx = (phraseIdx + 1) % shimmerPhrases.length;
+        shimmerText.textContent = shimmerPhrases[phraseIdx];
+      }, 1200);
+
+      setTimeout(function () {
+        clearInterval(phraseTimer);
+        videoLoading.style.display = 'none';
+        storyVideo.style.display = 'block';
+        storyVideo.play().catch(function () {});
+      }, 4200);
+    });
+  }
+
   if (!modal || !audioEl) return;
 
   function openModal(recipeId, recipeName, ingredientsParam) {
