@@ -2,8 +2,9 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env'
 const path    = require('path');
 const express = require('express');
 
-const uploadRoute   = require('./routes/upload');
-const hfRoute       = require('./routes/hf');
+const uploadRoute    = require('./routes/upload');
+const hfRoute        = require('./routes/hf');
+const cloudinaryRoute = require('./routes/cloudinary');
 
 // Teammate routes (generate3d + story) — load only if files exist
 let generate3dRoute = null;
@@ -31,6 +32,7 @@ app.use('/assets', express.static(path.join(__dirname, '..', 'assets')));
 // ── API routes ───────────────────────────────────────────────────────────────
 app.use('/api/upload', uploadRoute);
 app.use('/api/hf',     hfRoute);             // /api/hf/depth, /api/hf/segment
+app.use('/api/cloudinary', cloudinaryRoute); // /api/cloudinary/label-url
 if (generate3dRoute) app.use('/api/generate3d', generate3dRoute);
 if (storyRoute)      app.use('/api',            storyRoute);
 

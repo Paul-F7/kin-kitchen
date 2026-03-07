@@ -87,9 +87,9 @@
                 name: typeof f === 'object' ? f.label : f,
                 confidence: f.confidence || 1,
               }));
-              window.handleGenerate3d(data.url || '', presetBoxes, container);
+              window.handleGenerate3d(data.url || '', presetBoxes, container, data.publicId || null);
             } else {
-              window.handleGenerate3d(data.url || '', bboxes, container);
+              window.handleGenerate3d(data.url || '', bboxes, container, data.publicId || null);
             }
           }
         });

@@ -101,9 +101,36 @@ function getTransformedUrl(publicId, options = {}, resourceType = 'image') {
   });
 }
 
+/**
+ * Build a Cloudinary URL with a text overlay (ingredient label).
+ * Uses Cloudinary's text overlay: font, size, color, then layer_apply with position.
+ */
+function getLabeledImageUrl(publicId, label) {
+  if (!publicId || !label || !process.env.CLOUDINARY_CLOUD_NAME) return null;
+  const text = String(label).trim().slice(0, 80);
+  if (!text) return null;
+  return cloudinary.url(publicId, {
+    type: 'upload',
+    resource_type: 'image',
+    transformation: [
+      {
+        overlay: { font_family: 'Arial', font_size: 36, font_weight: 'bold', text },
+        color: '#2C1810',
+      },
+      {
+        flags: 'layer_apply',
+        gravity: 'south_west',
+        x: 20,
+        y: 20,
+      },
+    ],
+  });
+}
+
 module.exports = {
   upload,
   getThumbnailUrl,
   getVideoPosterUrl,
   getTransformedUrl,
+  getLabeledImageUrl,
 };

@@ -117,6 +117,22 @@ const AkiRender = (() => {
     const chip = document.getElementById('audio-chip');
     if (chip) chip.style.display = ojibweName !== '–' ? '' : 'none';
 
+    // Clickable ingredient chips — show Cloudinary labeled image on click
+    const chipsWrap = document.getElementById('detect-ingredient-chips');
+    if (chipsWrap && data.publicId && ingredients.length) {
+      chipsWrap.style.display = '';
+      chipsWrap.innerHTML = ingredients.slice(0, 10).map(ing =>
+        '<button type="button" class="detect-ingredient-chip" data-ingredient="' + escapeHtml(ing.name) + '">' +
+          escapeHtml(typeof formatIngredientLabel === 'function' ? formatIngredientLabel(ing.name) : ing.name) +
+        '</button>'
+      ).join('');
+      chipsWrap.querySelectorAll('.detect-ingredient-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (typeof showIngredientLabel === 'function') showIngredientLabel(data.publicId, btn.dataset.ingredient);
+        });
+      });
+    } else if (chipsWrap) chipsWrap.style.display = 'none';
+
     // Placeholder emoji update
     if (holder) {
       const emoji = ingredientEmoji(ingName);
@@ -146,16 +162,18 @@ const AkiRender = (() => {
     _set('recipe-serves',         '4');
     _set('recipe-difficulty',     'Easy');
 
-    // Ingredient list — use detected ingredients + map ojibwe names
+    // Ingredient list — use detected ingredients + map ojibwe names; click to show Cloudinary label
     const ingredients   = collectIngredients(data);
     const traditNames   = ctx?.traditionalNames || [];
     const ingListEl     = document.getElementById('recipe-ingredients');
+    const publicId      = data.publicId || null;
     if (ingListEl) {
       ingListEl.innerHTML = ingredients.slice(0, 8).map(ing => {
         const match = traditNames.find(t => ing.name.toLowerCase().includes(t.name?.toLowerCase() || '##'));
         const ojibwe = match?.name || '';
+        const clickable = publicId && typeof showIngredientLabel === 'function' ? ' ingredient-row-clickable' : '';
         return `
-          <div class="ingredient-row">
+          <div class="ingredient-row${clickable}" data-ingredient="${escapeHtml(ing.name)}" role="${clickable ? 'button' : ''}" tabindex="${clickable ? '0' : ''}">
             <div class="ingredient-left">
               <div class="ingredient-dot"></div>
               <div>
@@ -166,6 +184,15 @@ const AkiRender = (() => {
             <div class="ingredient-amount">${ing.conf ? `${Math.round(ing.conf * 100)}%` : ''}</div>
           </div>`;
       }).join('') || '<p style="color:var(--text-muted);font-size:14px;padding:16px 0">No ingredients detected.</p>';
+      if (publicId && typeof showIngredientLabel === 'function' && !ingListEl.dataset.labelListener) {
+        ingListEl.dataset.labelListener = '1';
+        ingListEl.addEventListener('click', e => {
+          const row = e.target.closest('.ingredient-row-clickable');
+          if (!row || !row.dataset.ingredient) return;
+          const data = AkiApp.state.uploadData;
+          if (data && data.publicId) showIngredientLabel(data.publicId, row.dataset.ingredient);
+        });
+      }
     }
 
     // Steps — from traditional preparations or cultural uses

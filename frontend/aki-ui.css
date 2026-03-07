@@ -577,6 +577,30 @@ body {
   margin-bottom: 28px;
 }
 
+.detect-ingredient-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.detect-ingredient-chip {
+  padding: 8px 14px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-family: 'DM Sans', sans-serif;
+  background: rgba(200,129,58,0.15);
+  color: var(--ochre);
+  border: 1px solid rgba(200,129,58,0.35);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.detect-ingredient-chip:hover {
+  background: rgba(200,129,58,0.25);
+  border-color: var(--ochre);
+}
+
 .tag {
   padding: 6px 14px;
   border-radius: 100px;
@@ -781,6 +805,14 @@ body {
   background: rgba(200,129,58,0.05);
   margin: 0 -8px;
   padding: 14px 8px;
+}
+
+.ingredient-row-clickable {
+  cursor: pointer;
+}
+
+.ingredient-row-clickable:hover {
+  background: rgba(200,129,58,0.08);
 }
 
 .ingredient-left {

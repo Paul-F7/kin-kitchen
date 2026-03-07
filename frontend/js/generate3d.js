@@ -1,4 +1,4 @@
-/* global THREE, escapeHtml, INGREDIENT_POSITIONS, INGREDIENT_SCALES, DEFAULT_SCALE, INGREDIENT_ROTATIONS, DEFAULT_ROTATION */
+/* global THREE, escapeHtml, formatIngredientLabel, showIngredientLabel, INGREDIENT_POSITIONS, INGREDIENT_SCALES, DEFAULT_SCALE, INGREDIENT_ROTATIONS, DEFAULT_ROTATION */
 'use strict';
 
 const ASSETS_PATH = '/assets/3d';
@@ -12,6 +12,10 @@ let positionPanel = null;
 let animationFrameId = null;
 let isXRActive = false;
 let xrSession = null;
+let kitchenPublicId = null;
+let kitchenIngredientLabelEl = null;
+let kitchenMoveMode = false;
+let kitchenSelectedForMove = null;
 
 function initScene(container) {
   scene = new THREE.Scene();
@@ -102,12 +106,34 @@ function initScene(container) {
 
     if (intersects.length > 0) {
       let target = intersects[0].object;
-      // Walk up to find the ingredient group
       while (target.parent && !ingredientMeshes.includes(target)) {
         target = target.parent;
       }
-      selectObject(target);
+      var name = target.userData.slotName || target.userData.ingredientName;
+      var displayName = name ? (typeof formatIngredientLabel === 'function' ? formatIngredientLabel(name) : name.replace(/_/g, ' ')) : '';
+
+      // Always show ingredient name in overlay (label)
+      if (kitchenIngredientLabelEl) {
+        kitchenIngredientLabelEl.textContent = displayName ? displayName : '';
+        kitchenIngredientLabelEl.style.display = displayName ? 'block' : 'none';
+      }
+
+      // Open Cloudinary labeled image modal
+      if (kitchenPublicId && name && typeof showIngredientLabel === 'function') {
+        showIngredientLabel(kitchenPublicId, displayName || name);
+      }
+
+      // Remember for Move mode; only show gizmo when Move is on
+      kitchenSelectedForMove = target;
+      if (kitchenMoveMode) {
+        selectedObject = target;
+        transformControls.attach(target);
+      } else {
+        selectedObject = null;
+        transformControls.detach();
+      }
     } else {
+      if (kitchenIngredientLabelEl) kitchenIngredientLabelEl.style.display = 'none';
       deselectObject();
     }
   });
@@ -160,11 +186,13 @@ function selectObject(obj) {
   if (selectedObject === obj) return;
   deselectObject();
   selectedObject = obj;
-  transformControls.attach(obj);
+  kitchenSelectedForMove = obj;
+  if (kitchenMoveMode) transformControls.attach(obj);
 }
 
 function deselectObject() {
   selectedObject = null;
+  kitchenSelectedForMove = null;
   transformControls.detach();
 }
 
@@ -338,7 +366,10 @@ function resetCameraState() {
   console.log('Camera reset to default');
 }
 
-async function handleGenerate3d(imageUrl, boundingBoxes, container) {
+async function handleGenerate3d(imageUrl, boundingBoxes, container, publicId) {
+  kitchenPublicId = publicId || null;
+  kitchenMoveMode = false;
+  kitchenSelectedForMove = null;
   // Use overlay for status messages, container for the 3D canvas
   var overlay = document.getElementById('kitchen3d-overlay');
   if (overlay) overlay.innerHTML = '<p style="color:var(--cream);font-size:14px;">Loading 3D scene...</p>';
@@ -420,9 +451,18 @@ async function handleGenerate3d(imageUrl, boundingBoxes, container) {
       overlay.appendChild(status);
 
       const hint = document.createElement('p');
-      hint.style.cssText = 'color:var(--cream);opacity:0.5;font-size:11px;margin-bottom:12px;';
-      hint.textContent = 'Click an ingredient to select it, then drag to move.';
+      hint.style.cssText = 'color:var(--cream);opacity:0.5;font-size:11px;margin-bottom:8px;';
+      hint.textContent = 'Click an ingredient to see its name and Cloudinary labeled photo.';
       overlay.appendChild(hint);
+
+      // Ingredient name label (shown when you click an object)
+      const labelWrap = document.createElement('div');
+      labelWrap.style.cssText = 'margin-bottom:12px;min-height:28px;';
+      kitchenIngredientLabelEl = document.createElement('span');
+      kitchenIngredientLabelEl.className = 'kitchen3d-ingredient-label';
+      kitchenIngredientLabelEl.style.cssText = 'display:none;padding:8px 14px;border-radius:8px;background:rgba(200,129,58,0.25);color:var(--cream);font-size:14px;font-weight:600;border:1px solid rgba(200,129,58,0.5);';
+      labelWrap.appendChild(kitchenIngredientLabelEl);
+      overlay.appendChild(labelWrap);
 
       // Button row
       const btnRow = document.createElement('div');
@@ -460,15 +500,26 @@ async function handleGenerate3d(imageUrl, boundingBoxes, container) {
       });
       btnRow.appendChild(camBtn);
 
-      // Move mode
+      // Move mode (enables transform gizmo; click ingredient first to select)
       const moveBtn = document.createElement('button');
       moveBtn.textContent = 'Move';
-      moveBtn.className = 'kitchen3d-btn kitchen3d-btn--active';
+      moveBtn.className = 'kitchen3d-btn';
       moveBtn.addEventListener('click', () => {
-        transformControls.setMode('translate');
-        moveBtn.classList.add('kitchen3d-btn--active');
-        rotBtn.classList.remove('kitchen3d-btn--active');
-        scaleBtn.classList.remove('kitchen3d-btn--active');
+        kitchenMoveMode = !kitchenMoveMode;
+        moveBtn.classList.toggle('kitchen3d-btn--active', kitchenMoveMode);
+        if (kitchenMoveMode && kitchenSelectedForMove) {
+          transformControls.attach(kitchenSelectedForMove);
+          selectedObject = kitchenSelectedForMove;
+        } else if (!kitchenMoveMode) {
+          transformControls.detach();
+          selectedObject = null;
+          kitchenSelectedForMove = null;
+        }
+        if (kitchenMoveMode) {
+          transformControls.setMode('translate');
+          rotBtn.classList.remove('kitchen3d-btn--active');
+          scaleBtn.classList.remove('kitchen3d-btn--active');
+        }
       });
       btnRow.appendChild(moveBtn);
 
@@ -477,10 +528,15 @@ async function handleGenerate3d(imageUrl, boundingBoxes, container) {
       rotBtn.textContent = 'Rotate';
       rotBtn.className = 'kitchen3d-btn';
       rotBtn.addEventListener('click', () => {
-        transformControls.setMode('rotate');
+        kitchenMoveMode = true;
+        moveBtn.classList.add('kitchen3d-btn--active');
         rotBtn.classList.add('kitchen3d-btn--active');
-        moveBtn.classList.remove('kitchen3d-btn--active');
         scaleBtn.classList.remove('kitchen3d-btn--active');
+        if (kitchenSelectedForMove) {
+          transformControls.attach(kitchenSelectedForMove);
+          selectedObject = kitchenSelectedForMove;
+        }
+        transformControls.setMode('rotate');
       });
       btnRow.appendChild(rotBtn);
 
@@ -489,10 +545,15 @@ async function handleGenerate3d(imageUrl, boundingBoxes, container) {
       scaleBtn.textContent = 'Scale';
       scaleBtn.className = 'kitchen3d-btn';
       scaleBtn.addEventListener('click', () => {
-        transformControls.setMode('scale');
+        kitchenMoveMode = true;
+        moveBtn.classList.add('kitchen3d-btn--active');
         scaleBtn.classList.add('kitchen3d-btn--active');
-        moveBtn.classList.remove('kitchen3d-btn--active');
         rotBtn.classList.remove('kitchen3d-btn--active');
+        if (kitchenSelectedForMove) {
+          transformControls.attach(kitchenSelectedForMove);
+          selectedObject = kitchenSelectedForMove;
+        }
+        transformControls.setMode('scale');
       });
       btnRow.appendChild(scaleBtn);
 
