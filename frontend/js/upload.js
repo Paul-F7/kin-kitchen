@@ -14,6 +14,11 @@ document.getElementById('uploadForm').addEventListener('submit', async (e) => {
 
     resultEl.className = 'url';
     resultEl.innerHTML = renderAnalysis(data);
+
+    const isImage = document.getElementById('file').files[0].type.startsWith('image/');
+    if (isImage && data.url) {
+      addGenerate3dButton(data.url);
+    }
   } catch (err) {
     resultEl.className = 'error';
     resultEl.textContent = err.message;

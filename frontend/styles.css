@@ -10,3 +10,5 @@ button { padding: 0.5rem 1rem; cursor: pointer; }
 .analysis ul { margin: 0.25rem 0; padding-left: 1.25rem; }
 .analysis p { margin: 0.5rem 0; }
 .analysis--stacked { margin-top: 0.75rem; }
+.btn-3d { padding: 0.5rem 1rem; cursor: pointer; background: #2563eb; color: #fff; border: none; border-radius: 4px; font-size: 0.875rem; }
+.btn-3d:hover { background: #1d4ed8; }
