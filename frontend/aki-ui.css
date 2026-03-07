@@ -1142,3 +1142,98 @@ body {
   font-size: 13px;
   z-index: 5;
 }
+
+/* ─────────────────────────────────────────────────────
+   GLOWING CARD EFFECT
+   Tracks mouse position and renders a rotating conic-gradient
+   border arc that follows the cursor.
+
+   CSS vars set by glow.js per-frame:
+     --glow-start   : current angle (degrees) of the arc start
+     --glow-active  : 0 (hidden) or 1 (visible)
+
+   Colours are Aki-themed:
+     ochre (#C8813A), ochre-light (#E8A55A),
+     forest (#2D4A35), forest-light (#3D6148), cream (#F5ECD7)
+   ───────────────────────────────────────────────────── */
+
+/* The card itself just needs position:relative and overflow:visible */
+.glowing-card {
+  position: relative;
+  isolation: isolate; /* prevent z-index bleed */
+}
+
+/*
+  The ::after pseudo-element renders the glow arc.
+  It sits *outside* the card border (inset: -1px) and uses
+  mask-composite:intersect to carve the border shape out.
+*/
+.glowing-card::after {
+  content: '';
+  position: absolute;
+  /* Extend exactly 1px beyond the card edge on all sides */
+  inset: -1px;
+  border-radius: inherit;
+  /* Transparent border so the gradient shows through only within it */
+  border: 1px solid transparent;
+
+  /* Aki-themed gradient — matches ochre/forest/cream palette */
+  background:
+    radial-gradient(circle,            #C8813A 10%, #C8813A00 20%),
+    radial-gradient(circle at 40% 40%, #E8A55A  5%, #E8A55A00 15%),
+    radial-gradient(circle at 60% 60%, #2D4A35 10%, #2D4A3500 20%),
+    radial-gradient(circle at 40% 60%, #F5ECD7  8%, #F5ECD700 18%),
+    repeating-conic-gradient(
+      from 236.84deg at 50% 50%,
+      #C8813A  0%,
+      #E8A55A  calc(25% / 5),
+      #2D4A35  calc(50% / 5),
+      #3D6148  calc(75% / 5),
+      #C8813A  calc(100% / 5)
+    );
+
+  /* Fixed attachment so the gradient stays stable while element scrolls */
+  background-attachment: fixed;
+
+  /* Fade in/out smoothly as --glow-active changes */
+  opacity: var(--glow-active, 0);
+  transition: opacity 300ms ease;
+
+  /*
+    Mask technique (same as the React original):
+      Layer 1: fully transparent → hides the background fill
+      Layer 2: conic sweep centred at --glow-start ± --glow-spread
+               → reveals only the border arc aligned to the mouse
+    mask-composite:intersect means only pixels visible in BOTH layers show.
+  */
+  -webkit-mask-clip: padding-box, border-box;
+          mask-clip: padding-box, border-box;
+  -webkit-mask-composite: destination-in;
+          mask-composite: intersect;
+  -webkit-mask-image:
+    linear-gradient(#0000, #0000),
+    conic-gradient(
+      from calc((var(--glow-start, 0) - 28) * 1deg),
+      #00000000 0deg,
+      #fff,
+      #00000000 calc(28 * 2deg)
+    );
+  mask-image:
+    linear-gradient(#0000, #0000),
+    conic-gradient(
+      from calc((var(--glow-start, 0) - 28) * 1deg),
+      #00000000 0deg,
+      #fff,
+      #00000000 calc(28 * 2deg)
+    );
+
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* On dark-bg cards (ar-card, detect-panel) boost visibility slightly */
+.screen-ar     .glowing-card::after,
+.screen-detect .glowing-card::after,
+.screen-story  .glowing-card::after {
+  opacity: calc(var(--glow-active, 0) * 1.3);
+}

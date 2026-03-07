@@ -42,6 +42,9 @@ const AkiApp = (() => {
 
     state.currentScreen = screenName;
 
+    // Rescan for any new .glowing-card elements added by render.js
+    if (window.GlowingEffect) GlowingEffect.rescan();
+
     // Bottom nav visibility
     const nav = document.getElementById('bottom-nav');
     if (nav) nav.style.display = NAV_SCREENS.has(screenName) ? 'flex' : 'none';
