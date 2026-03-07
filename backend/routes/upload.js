@@ -8,8 +8,8 @@ const { analyzeMedia }               = require('../services/gemini');
 const { matchRecipes }               = require('../services/recipe-matcher');
 
 // ── Constants ────────────────────────────────────────────────────────────────
-const UPLOAD_DIR        = path.join(__dirname, '..', 'uploads');
-const MAX_FILE_MB       = 100;
+const UPLOAD_DIR         = path.join(__dirname, '..', 'uploads');
+const MAX_FILE_MB        = 100;
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
   'video/mp4',  'video/quicktime', 'video/webm',
@@ -39,9 +39,7 @@ router.post('/', multerUpload.single('file'), async (req, res) => {
   }
 
   const localPath = req.file.path;
-
-  // Clean up helper — always remove temp file
-  const cleanup = () => fs.unlink(localPath, () => {});
+  const cleanup   = () => fs.unlink(localPath, () => {});
 
   try {
     // 1. Upload to Cloudinary (also triggers LVIS detection)
@@ -50,7 +48,7 @@ router.post('/', multerUpload.single('file'), async (req, res) => {
 
     const mediaType = (req.file.mimetype || '').startsWith('video/') ? 'video' : 'image';
 
-    // 2. Gemini analysis (runs even if Cloudinary content analysis fails)
+    // 2. Gemini analysis
     let analysis      = null;
     let analysisError = null;
     try {
@@ -71,14 +69,15 @@ router.post('/', multerUpload.single('file'), async (req, res) => {
       }
     }
 
-    // 4. Match ingredients to Indigenous recipes dataset
+    // 4. Match detected ingredients to Indigenous recipes dataset
     const ingredients = [];
     if (contentAnalysis?.foodDetected?.length) {
-      contentAnalysis.foodDetected.forEach((x) =>
-        ingredients.push(typeof x === 'string' ? x : x?.label));
+      contentAnalysis.foodDetected.forEach(x =>
+        ingredients.push(typeof x === 'string' ? x : x?.label)
+      );
     }
     if (boundingBoxes?.length) {
-      boundingBoxes.forEach((b) => b.name && ingredients.push(b.name));
+      boundingBoxes.forEach(b => b.name && ingredients.push(b.name));
     }
     const suggestedRecipes = matchRecipes(ingredients, { minScore: 0.15, maxResults: 16 });
 

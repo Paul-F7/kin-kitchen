@@ -2,8 +2,14 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env'
 const path    = require('path');
 const express = require('express');
 
-const uploadRoute = require('./routes/upload');
-const hfRoute     = require('./routes/hf');
+const uploadRoute   = require('./routes/upload');
+const hfRoute       = require('./routes/hf');
+
+// Teammate routes (generate3d + story) — load only if files exist
+let generate3dRoute = null;
+let storyRoute      = null;
+try { generate3dRoute = require('./routes/generate3d'); } catch (_) {}
+try { storyRoute      = require('./routes/story');      } catch (_) {}
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -23,20 +29,18 @@ app.use(express.static(path.join(__dirname, '..', 'frontend')));
 
 // ── API routes ───────────────────────────────────────────────────────────────
 app.use('/api/upload', uploadRoute);
-app.use('/api/hf',     hfRoute);      // /api/hf/depth, /api/hf/segment
+app.use('/api/hf',     hfRoute);             // /api/hf/depth, /api/hf/segment
+if (generate3dRoute) app.use('/api/generate3d', generate3dRoute);
+if (storyRoute)      app.use('/api',            storyRoute);
 
-// ── Health check (useful for deployment platforms & integration tests) ───────
+// ── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     services: {
-      cloudinary: !!(
-        process.env.CLOUDINARY_CLOUD_NAME &&
-        process.env.CLOUDINARY_API_KEY    &&
-        process.env.CLOUDINARY_API_SECRET
-      ),
-      gemini: !!process.env.GEMINI_API_KEY,
+      cloudinary:  !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET),
+      gemini:      !!process.env.GEMINI_API_KEY,
       huggingface: !!(process.env.HF_TOKEN || process.env.REACT_APP_HF_TOKEN),
     },
   });
@@ -62,11 +66,7 @@ const server = app.listen(PORT, () =>
 // ── Graceful shutdown ────────────────────────────────────────────────────────
 function shutdown(signal) {
   console.log(`[server] ${signal} received — shutting down`);
-  server.close(() => {
-    console.log('[server] Closed. Goodbye.');
-    process.exit(0);
-  });
-  // Force-kill after 5 s if connections are lingering
+  server.close(() => { console.log('[server] Closed.'); process.exit(0); });
   setTimeout(() => process.exit(1), 5000).unref();
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));

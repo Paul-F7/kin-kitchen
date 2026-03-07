@@ -61,10 +61,9 @@ function renderAnalysis(data) {
     </div>`;
 }
 
-// ── Indigenous context section ────────────────────────────────────────────────
+// ── Indigenous context section (Gemini) ──────────────────────────────────────
 function renderIndigenousContext(ctx, recipes, nutrition) {
-  // Only render if we have at least one meaningful field
-  const hasCtx      = ctx && (
+  const hasCtx = ctx && (
     ctx.traditionalNames?.length ||
     ctx.culturalUses?.length ||
     ctx.traditionalPreparations?.length ||
@@ -148,11 +147,11 @@ function renderIndigenousContext(ctx, recipes, nutrition) {
     </div>`;
 }
 
-// ── Indigenous recipes you can make (from dataset match) ──────────────────────
+// ── Indigenous recipes you can make (from dataset match) ─────────────────────
 function renderSuggestedRecipes(suggestedRecipes) {
-  if (!suggestedRecipes.length) return '';
+  if (!suggestedRecipes?.length) return '';
   return `
-    <div class="indigenous-section suggested-recipes">
+    <div class="indigenous-section">
       <div class="indigenous-section__header">
         <span class="indigenous-section__icon" aria-hidden="true">🍲</span>
         <h2 class="indigenous-section__title">Indigenous recipes you can make</h2>
@@ -160,11 +159,19 @@ function renderSuggestedRecipes(suggestedRecipes) {
       <p class="suggested-recipes__intro">Based on your detected ingredients. Match = how many recipe ingredients you have.</p>
       <div class="ig-recipe-list suggested-recipes__list">
         ${suggestedRecipes.map(({ recipe, score, matchedIngredients }) => {
-          const pct = Math.round(score * 100);
+          const pct     = Math.round(score * 100);
           const matched = (matchedIngredients || []).join(', ') || '—';
           return `
           <div class="ig-recipe suggested-recipe">
-            <p class="ig-recipe__name">${escapeHtml(recipe.name)}</p>
+            <div class="ig-recipe__head">
+              <p class="ig-recipe__name">${escapeHtml(recipe.name)}</p>
+              <button type="button" class="story-btn"
+                data-recipe-id="${escapeHtml(recipe.id || '')}"
+                data-recipe-name="${escapeHtml(recipe.name || '')}"
+                aria-label="Listen to the story of ${escapeHtml(recipe.name || '')}">
+                🔊 Listen to the story
+              </button>
+            </div>
             <p class="ig-recipe__culture">${escapeHtml(recipe.culture || '')}</p>
             <p class="ig-recipe__desc">${escapeHtml(recipe.description || '')}</p>
             <p class="suggested-recipe__match">Match: ${pct}% — ${escapeHtml(matched)}</p>
@@ -179,33 +186,18 @@ function collectIngredients(data) {
   const seen = new Set();
   const out  = [];
 
-  // 1. Cloudinary LVIS bounding boxes (most precise)
   for (const b of (data.boundingBoxes || [])) {
     const name = (b.name || '').toLowerCase();
-    if (!seen.has(name)) {
-      seen.add(name);
-      out.push({ name, conf: b.confidence ? Math.round(b.confidence * 100) : null });
-    }
+    if (!seen.has(name)) { seen.add(name); out.push({ name, conf: b.confidence ? Math.round(b.confidence * 100) : null }); }
   }
-
-  // 2. Cloudinary content analysis food detections
   for (const f of (data.contentAnalysis?.foodDetected || [])) {
     const name = ((typeof f === 'object' ? f.label : f) || '').toLowerCase();
-    if (name && !seen.has(name)) {
-      seen.add(name);
-      out.push({ name, conf: f.confidence ? Math.round(f.confidence * 100) : null });
-    }
+    if (name && !seen.has(name)) { seen.add(name); out.push({ name, conf: f.confidence ? Math.round(f.confidence * 100) : null }); }
   }
-
-  // 3. Gemini detected objects
   for (const obj of (data.analysis?.detectedObjects || [])) {
     const name = (obj || '').toLowerCase();
-    if (name && !seen.has(name)) {
-      seen.add(name);
-      out.push({ name, conf: null });
-    }
+    if (name && !seen.has(name)) { seen.add(name); out.push({ name, conf: null }); }
   }
-
   return out;
 }
 
@@ -216,7 +208,6 @@ function mountAR(data) {
   const img     = document.getElementById('ar-image');
   if (!wrapper || !img) return;
 
-  // Best detection: bbox → food detected → gemini object → fallback
   let detection = null;
 
   if (data.boundingBoxes?.length) {

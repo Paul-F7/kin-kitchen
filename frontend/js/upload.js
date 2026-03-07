@@ -2,7 +2,6 @@
 'use strict';
 
 // ── Upload state machine ──────────────────────────────────────────────────────
-// Three phases shown to the user: uploading → analysing → generating 3D
 const STEPS = [
   { id: 'step-upload',  label: 'Uploading photo…' },
   { id: 'step-analyse', label: 'Analysing ingredients…' },
@@ -48,7 +47,6 @@ document.getElementById('uploadBtn').addEventListener('click', async () => {
     return;
   }
 
-  // Unmount any previous AR session
   if (window.CookingAR) CookingAR.unmount();
 
   btn.disabled = true;
@@ -58,24 +56,26 @@ document.getElementById('uploadBtn').addEventListener('click', async () => {
   formData.append('file', fileInput.files[0]);
 
   try {
-    // Step 1: upload (visual only — step advances on response)
     setStep(0);
-
     const res = await fetch('/api/upload', { method: 'POST', body: formData });
 
-    // Step 2: analysing (fetching done, rendering result)
     setStep(1);
-    await new Promise(r => setTimeout(r, 120)); // let paint land
+    await new Promise(r => setTimeout(r, 120));
 
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `Server error (${res.status})`);
 
-    // Step 3: generating 3D (render HTML, then kick off WebGL)
     setStep(2);
     resultEl.innerHTML = renderAnalysis(data);
 
-    // Give browser 300 ms to paint the card before mounting WebGL
+    // Give browser 300ms to paint before mounting WebGL
     setTimeout(() => mountAR(data), 300);
+
+    // Offer 3D mesh generation if it's an image (teammate feature)
+    const file = fileInput.files[0];
+    if (file && file.type.startsWith('image/') && data.url) {
+      if (typeof addGenerate3dButton === 'function') addGenerate3dButton(data.url);
+    }
 
   } catch (err) {
     showError(resultEl, err.message || 'Something went wrong. Please try again.');
