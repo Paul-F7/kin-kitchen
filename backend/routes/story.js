@@ -36,6 +36,23 @@ router.get('/story-audio', async (req, res) => {
   }
 });
 
+// POST /story/speak — arbitrary text → ElevenLabs TTS audio
+// Used by app.js speakText() for Ojibwe names, story narration, word of the day.
+router.post('/story/speak', express.json(), async (req, res) => {
+  const text = (req.body?.text || '').trim();
+  if (!text) return res.status(400).json({ error: 'Missing text' });
+  if (text.length > 500) return res.status(400).json({ error: 'Text too long (max 500 chars)' });
+
+  try {
+    const audioBuffer = await textToSpeech(text);
+    res.set({ 'Content-Type': 'audio/mpeg', 'Content-Length': audioBuffer.length });
+    res.send(audioBuffer);
+  } catch (err) {
+    console.error('[story/speak] TTS error:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to generate audio' });
+  }
+});
+
 router.get('/story', (req, res) => {
   const recipeId = (req.query.recipeId || '').trim();
   if (!recipeId) return res.status(400).json({ error: 'Missing recipeId' });
