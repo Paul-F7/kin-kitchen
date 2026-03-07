@@ -3,6 +3,8 @@ const express = require('express');
 const fs = require('fs');
 const multer = require('multer');
 const { upload: uploadToCloudinary } = require('./services/cloudinary');
+const { analyzeImageContent } = require('./services/cloudinary-analysis');
+const { analyzeMedia } = require('./services/gemini');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,7 +22,26 @@ app.post('/api/upload', multerUpload.single('file'), async (req, res) => {
   try {
     const { url, publicId } = await uploadToCloudinary(req.file.path);
     fs.unlink(req.file.path, () => {});
-    res.json({ url, publicId });
+
+    const mediaType = (req.file.mimetype || '').startsWith('video/') ? 'video' : 'image';
+    let analysis = null;
+    let analysisError = null;
+    try {
+      analysis = await analyzeMedia(url, mediaType);
+    } catch (err) {
+      analysisError = err.message || 'Analysis failed';
+    }
+
+    let contentAnalysis = null;
+    if (mediaType === 'image') {
+      try {
+        contentAnalysis = await analyzeImageContent(url);
+      } catch (err) {
+        contentAnalysis = { error: err.message || 'Content analysis failed' };
+      }
+    }
+
+    res.json({ url, publicId, analysis, analysisError, contentAnalysis });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Upload failed' });
   }
