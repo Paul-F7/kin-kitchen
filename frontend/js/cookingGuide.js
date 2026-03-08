@@ -42,6 +42,7 @@ const CookingGuide = (() => {
   let _animT        = 0;
   let _stirAngle    = 0;
   let _chopWaiting  = false;  // true = waiting for user to click Start Cutting
+  let _nextReady    = false;  // true = animation complete, next button unlocked
 
   // Completion scene
   let _soupMesh        = null;
@@ -286,8 +287,11 @@ const CookingGuide = (() => {
 .cg-btn:active { transform:scale(.93); }
 .cg-btn-back { background:transparent; color:rgba(200,129,58,.80); border:1px solid rgba(200,129,58,.30); }
 .cg-btn-next { background:#C8813A; color:#FFF8EE; box-shadow:0 2px 10px rgba(200,129,58,.28); }
+.cg-btn-start { background:#C8813A; color:#FFF8EE; box-shadow:0 2px 10px rgba(200,129,58,.28); }
 .cg-btn-back:hover { background:rgba(200,129,58,.10); border-color:rgba(200,129,58,.52); }
 .cg-btn-next:hover { background:#A06228; }
+.cg-btn-start:hover { background:#A06228; }
+.cg-btn-next.cg-btn-next--locked { background:rgba(200,129,58,.25); color:rgba(255,248,238,.35); box-shadow:none; cursor:not-allowed; pointer-events:none; }
 .cg-ring     { position:absolute; top:12px; right:12px; width:34px; height:34px; }
 .cg-ring svg { transform:rotate(-90deg); }
 .cg-ring-c   { fill:none; stroke:rgba(200,129,58,.50); stroke-width:3; stroke-linecap:round; stroke-dasharray:86; stroke-dashoffset:0; }
@@ -377,7 +381,7 @@ const CookingGuide = (() => {
     <div class="cg-body-text" id="cg-body-text"></div>
     <div class="cg-tip"       id="cg-tip" style="display:none"></div>
     <div class="cg-btns">
-      <button class="cg-btn cg-btn-back" id="cg-btn-back">&#8592; Back</button>
+      <button class="cg-btn cg-btn-start" id="cg-btn-start" style="display:none">&#9654; Start</button>
       <button class="cg-btn cg-btn-next" id="cg-btn-next">Next &#8594;</button>
     </div>
     <div class="cg-swipe">&#8592; swipe to navigate &#8594;</div>
@@ -402,7 +406,7 @@ const CookingGuide = (() => {
 
     _overlayEl = el;
     _q('#cg-btn-next').addEventListener('click', () => _nextStep());
-    _q('#cg-btn-back').addEventListener('click', () => prev());
+    _q('#cg-btn-start').addEventListener('click', () => { _removeStartBtn(); _beginChop(); });
     _q('#cg-btn-listen').addEventListener('click', () => {
       const step = STEPS[_currentStep];
       if (step) _speakStep(step);
@@ -412,7 +416,7 @@ const CookingGuide = (() => {
     el.addEventListener('touchstart', e => { tx0 = e.changedTouches[0].clientX; }, { passive: true });
     el.addEventListener('touchend',   e => {
       const dx = e.changedTouches[0].clientX - tx0;
-      if (Math.abs(dx) > 46) { dx > 0 ? prev() : _nextStep(); }
+      if (Math.abs(dx) > 46 && dx < 0) { _nextStep(); }
     }, { passive: true });
   }
 
@@ -847,29 +851,29 @@ const CookingGuide = (() => {
 
     switch (type) {
       case 'chop':
-        // Don't auto-start — wait for user to press "Start Cutting"
         _chopWaiting = true;
-        _showStartCuttingBtn();
+        if (_currentStep === 0) _showStartBtn();
+        else setTimeout(_beginChop, 500);
         break;
       case 'pour':
         _chopWaiting = true;
-        _showStartPouringBtn();
+        setTimeout(_beginPour, 500);
         break;
       case 'boil':
         _chopWaiting = true;
-        _showStartBoilingBtn();
+        setTimeout(_beginBoil, 500);
         break;
       case 'add_veggies':
         _chopWaiting = true;
-        _showAddVeggiesBtn();
+        setTimeout(_beginAddVeggies, 500);
         break;
       case 'add_beans_corn':
         _chopWaiting = true;
-        _showAddBeansCornBtn();
+        setTimeout(_beginAddBeansCorn, 500);
         break;
       case 'stir_finish':
         _chopWaiting = true;
-        _showStartStirringBtn();
+        setTimeout(_beginStir, 500);
         break;
       case 'stir':
         if (_spoonGroup && ingPos) {
@@ -884,112 +888,18 @@ const CookingGuide = (() => {
     }
   }
 
-  // ── Start Cutting button (lets user position board/squash first) ────────
-  function _showStartCuttingBtn() {
-    _removeStartCuttingBtn();
-    const btn = document.createElement('button');
-    btn.id = 'cg-start-cutting';
-    btn.textContent = 'Start Cutting';
-    btn.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:10001;' +
-      'background:#f0c040;color:#1a1a1a;border:none;font:bold 15px sans-serif;padding:10px 28px;' +
-      'border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
-    btn.addEventListener('click', _beginChop);
-    document.body.appendChild(btn);
+
+  // ── Start button (shown only on step 1 inside the instruction panel) ────────
+  function _showStartBtn() {
+    const startBtn = _q('#cg-btn-start'), nextBtn = _q('#cg-btn-next');
+    if (startBtn) startBtn.style.display = '';
+    if (nextBtn)  nextBtn.style.display  = 'none';
   }
 
-  function _removeStartCuttingBtn() {
-    const el = document.getElementById('cg-start-cutting');
-    if (el) el.remove();
-  }
-
-  // ── Start Pouring button (for pour steps) ──────────────────────────────
-  function _showStartPouringBtn() {
-    _removeStartPouringBtn();
-    const btn = document.createElement('button');
-    btn.id = 'cg-start-pouring';
-    btn.textContent = 'Start Pouring';
-    btn.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:10001;' +
-      'background:#4a90d9;color:#fff;border:none;font:bold 15px sans-serif;padding:10px 28px;' +
-      'border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
-    btn.addEventListener('click', _beginPour);
-    document.body.appendChild(btn);
-  }
-
-  function _removeStartPouringBtn() {
-    const el = document.getElementById('cg-start-pouring');
-    if (el) el.remove();
-  }
-
-  // ── Start Boiling button (for boil step) ────────────────────────────────
-  function _showStartBoilingBtn() {
-    _removeStartBoilingBtn();
-    const btn = document.createElement('button');
-    btn.id = 'cg-start-boiling';
-    btn.textContent = 'Start Boiling';
-    btn.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:10001;' +
-      'background:#d94a2a;color:#fff;border:none;font:bold 15px sans-serif;padding:10px 28px;' +
-      'border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
-    btn.addEventListener('click', _beginBoil);
-    document.body.appendChild(btn);
-  }
-
-  function _removeStartBoilingBtn() {
-    const el = document.getElementById('cg-start-boiling');
-    if (el) el.remove();
-  }
-
-  // ── Add Veggies button (for step 6) ───────────────────────────────────
-  function _showAddVeggiesBtn() {
-    _removeAddVeggiesBtn();
-    const btn = document.createElement('button');
-    btn.id = 'cg-start-veggies';
-    btn.textContent = 'Add Veggies';
-    btn.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:10001;' +
-      'background:#2a8c3e;color:#fff;border:none;font:bold 15px sans-serif;padding:10px 28px;' +
-      'border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
-    btn.addEventListener('click', _beginAddVeggies);
-    document.body.appendChild(btn);
-  }
-
-  function _removeAddVeggiesBtn() {
-    const el = document.getElementById('cg-start-veggies');
-    if (el) el.remove();
-  }
-
-  // ── Add Beans & Corn button (for step 7) ────────────────────────────
-  function _showAddBeansCornBtn() {
-    _removeAddBeansCornBtn();
-    const btn = document.createElement('button');
-    btn.id = 'cg-start-beans-corn';
-    btn.textContent = 'Add Beans & Corn';
-    btn.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:10001;' +
-      'background:#8B6914;color:#fff;border:none;font:bold 15px sans-serif;padding:10px 28px;' +
-      'border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
-    btn.addEventListener('click', _beginAddBeansCorn);
-    document.body.appendChild(btn);
-  }
-
-  function _removeAddBeansCornBtn() {
-    const el = document.getElementById('cg-start-beans-corn');
-    if (el) el.remove();
-  }
-
-  // ── Start Stirring button (for step 8) ────────────────────────────────
-  function _showStartStirringBtn() {
-    _removeStartStirringBtn();
-    const btn = document.createElement('button');
-    btn.id = 'cg-start-stirring';
-    btn.textContent = 'Start Stirring';
-    btn.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:10001;' +
-      'background:#6B3A14;color:#fff;border:none;font:bold 15px sans-serif;padding:10px 28px;' +
-      'border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
-    btn.addEventListener('click', _beginStir);
-    document.body.appendChild(btn);
-  }
-
-  function _removeStartStirringBtn() {
-    const el = document.getElementById('cg-start-stirring');
-    if (el) el.remove();
+  function _removeStartBtn() {
+    const startBtn = _q('#cg-btn-start'), nextBtn = _q('#cg-btn-next');
+    if (startBtn) startBtn.style.display = 'none';
+    if (nextBtn)  nextBtn.style.display  = '';
   }
 
   // Onion chop target on the board
@@ -998,7 +908,6 @@ const CookingGuide = (() => {
   const DICED_PILE_SCALE  = 0.2392;
 
   function _beginChop() {
-    _removeStartCuttingBtn();
     _chopWaiting = false;
 
     const step = STEPS[_currentStep];
@@ -1042,6 +951,7 @@ const CookingGuide = (() => {
           // Ingredient consumed — don't return it to shelf on step change
           delete _origPositions[slot];
           console.log('[CookingGuide] dice pipeline complete');
+          _unlockNext();
         },
       });
       return;
@@ -1073,6 +983,7 @@ const CookingGuide = (() => {
         onComplete:     function onMinceComplete() {
           delete _origPositions[slot];
           console.log('[CookingGuide] mince pipeline complete');
+          _unlockNext();
         },
       });
       return;
@@ -1103,6 +1014,7 @@ const CookingGuide = (() => {
           // Ingredient consumed — don't return it to shelf on step change
           delete _origPositions[slot];
           console.log('[CookingGuide] chop pipeline complete');
+          _unlockNext();
         },
       });
     }
@@ -1110,7 +1022,6 @@ const CookingGuide = (() => {
 
   // ── Begin Pour (for Step4Stock) ─────────────────────────────────────────
   function _beginPour() {
-    _removeStartPouringBtn();
     _chopWaiting = false;
 
     const step = STEPS[_currentStep];
@@ -1126,6 +1037,7 @@ const CookingGuide = (() => {
         potMesh:    _potMesh,
         onComplete: function onPourComplete() {
           console.log('[CookingGuide] pour stock pipeline complete');
+          _unlockNext();
         },
       });
     }
@@ -1133,7 +1045,6 @@ const CookingGuide = (() => {
 
   // ── Begin Boil (for Step5Boil — persistent steam) ─────────────────────
   function _beginBoil() {
-    _removeStartBoilingBtn();
     _chopWaiting = false;
 
     const step = STEPS[_currentStep];
@@ -1144,6 +1055,7 @@ const CookingGuide = (() => {
         potMesh: _potMesh,
         onComplete: function onBoilComplete() {
           console.log('[CookingGuide] boil steam started — persists for rest of tutorial');
+          _unlockNext();
         },
       });
     }
@@ -1151,7 +1063,6 @@ const CookingGuide = (() => {
 
   // ── Begin Add Veggies (for Step6Veggies) ──────────────────────────────
   function _beginAddVeggies() {
-    _removeAddVeggiesBtn();
     _chopWaiting = false;
 
     const step = STEPS[_currentStep];
@@ -1165,6 +1076,7 @@ const CookingGuide = (() => {
         potMesh:    _potMesh,
         onComplete: function onVeggiesComplete() {
           console.log('[CookingGuide] veggies added to pot — pipeline complete');
+          _unlockNext();
         },
       });
     }
@@ -1172,7 +1084,6 @@ const CookingGuide = (() => {
 
   // ── Begin Add Beans & Corn (for Step7BeansCorn) ──────────────────────
   function _beginAddBeansCorn() {
-    _removeAddBeansCornBtn();
     _chopWaiting = false;
 
     const step = STEPS[_currentStep];
@@ -1188,6 +1099,7 @@ const CookingGuide = (() => {
         potMesh:    _potMesh,
         onComplete: function onBeansCornComplete() {
           console.log('[CookingGuide] beans & corn added to pot — pipeline complete');
+          _unlockNext();
         },
       });
     }
@@ -1195,7 +1107,6 @@ const CookingGuide = (() => {
 
   // ── Begin Stir (for Step8Stir) ────────────────────────────────────────
   function _beginStir() {
-    _removeStartStirringBtn();
     _chopWaiting = false;
 
     const step = STEPS[_currentStep];
@@ -1209,6 +1120,7 @@ const CookingGuide = (() => {
         stewTargetScale: STEW_SCALE,
         onComplete: function onStirComplete() {
           console.log('[CookingGuide] stir complete — stew revealed');
+          _unlockNext();
         },
       });
     }
@@ -1420,9 +1332,9 @@ const CookingGuide = (() => {
     if (tipEl) { tipEl.textContent = step.tip || ''; tipEl.style.display = step.tip ? '' : 'none'; }
 
     // Buttons
-    const bkBtn = _q('#cg-btn-back'), nxBtn = _q('#cg-btn-next');
-    if (bkBtn) bkBtn.style.display = idx === 0 ? 'none' : '';
+    const nxBtn = _q('#cg-btn-next');
     if (nxBtn) nxBtn.textContent = idx === TOTAL - 1 ? 'Finish \u2192' : 'Next \u2192';
+    _lockNext();
 
     // Fade back in
     const card = _q('#cg-card');
@@ -1728,7 +1640,20 @@ const CookingGuide = (() => {
     _renderStep(_currentStep); _chime();
   }
 
+  function _lockNext() {
+    _nextReady = false;
+    const btn = _q('#cg-btn-next');
+    if (btn) btn.classList.add('cg-btn-next--locked');
+  }
+
+  function _unlockNext() {
+    _nextReady = true;
+    const btn = _q('#cg-btn-next');
+    if (btn) btn.classList.remove('cg-btn-next--locked');
+  }
+
   function _nextStep() {
+    if (!_nextReady) return;
     if (_currentStep >= TOTAL - 1) _renderCompletion();
     else { _currentStep++; _renderStep(_currentStep); _chime(); }
   }
@@ -1744,7 +1669,7 @@ const CookingGuide = (() => {
     if (_autoAdvanceTimer) { clearTimeout(_autoAdvanceTimer); _autoAdvanceTimer = null; }
     if (_stepAudio) { _stepAudio.pause(); _stepAudio = null; }
     _clearLights(); _returnAllIngredients(true); _setAnimType('none', null);
-    _removeStartCuttingBtn(); _removeStartPouringBtn(); _removeStartBoilingBtn(); _removeAddVeggiesBtn(); _removeAddBeansCornBtn(); _removeStartStirringBtn(); _chopWaiting = false;
+    _removeStartBtn(); _chopWaiting = false;
     if (typeof Step5Boil !== 'undefined') Step5Boil.cleanup();
     if (typeof Step6Veggies !== 'undefined') Step6Veggies.cleanup();
     if (typeof Step7BeansCorn !== 'undefined') Step7BeansCorn.cleanup();
@@ -1762,7 +1687,7 @@ const CookingGuide = (() => {
     if (_autoAdvanceTimer) { clearTimeout(_autoAdvanceTimer); _autoAdvanceTimer = null; }
     if (_stepAudio) { _stepAudio.pause(); _stepAudio = null; }
     _clearLights(); _clearParticles(); _returnAllIngredients(true);
-    _removeStartCuttingBtn(); _removeStartPouringBtn(); _removeStartBoilingBtn(); _removeAddVeggiesBtn(); _removeAddBeansCornBtn(); _removeStartStirringBtn(); _chopWaiting = false;
+    _removeStartBtn(); _chopWaiting = false;
     if (typeof Step1Chop !== 'undefined') Step1Chop.destroy();
     if (typeof Step2Chop !== 'undefined') Step2Chop.destroy();
     if (typeof Step3Garlic !== 'undefined') Step3Garlic.destroy();
