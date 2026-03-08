@@ -117,21 +117,53 @@ const AkiApp = (() => {
     });
   }
 
-  // ── Anime nav mascot positioning ──────────────────────────────────────────
+  // ── Anime nav ─────────────────────────────────────────────────────────────
+  let _mascotShakeTimer = null;
+
   function updateMascot(activeItem) {
-    const mascot  = document.getElementById('anime-mascot');
-    const wrapper = document.querySelector('.anime-nav-wrapper');
-    if (!mascot || !wrapper || !activeItem) return;
-    const wrapperRect = wrapper.getBoundingClientRect();
-    const itemRect    = activeItem.getBoundingClientRect();
-    // translateX to center mascot over active tab (mascot is 40px wide)
-    const mx = (itemRect.left + itemRect.width / 2) - (wrapperRect.left + wrapperRect.width / 2);
-    mascot.style.setProperty('--mx', mx + 'px');
+    const track     = document.getElementById('anime-mascot-track');
+    const indicator = document.getElementById('nav-active-indicator');
+    const pill      = document.getElementById('anime-nav-pill');
+    if (!track || !activeItem) return;
+
+    const pillRect = pill.getBoundingClientRect();
+    const itemRect = activeItem.getBoundingClientRect();
+
+    // Slide track: center over active tab (track is 60px wide)
+    const trackOffset = (itemRect.left + itemRect.width / 2) - pillRect.left - 30;
+    track.style.transform = `translateX(${trackOffset}px)`;
+
+    // Slide indicator to match active item position within pill
+    if (indicator) {
+      const indicatorLeft = itemRect.left - pillRect.left - 5;
+      indicator.style.left  = indicatorLeft + 'px';
+      indicator.style.width = (itemRect.width + 10) + 'px';
+    }
+  }
+
+  function triggerMascotHover(on) {
+    const mascot = document.getElementById('anime-mascot');
+    if (!mascot) return;
+    if (on) {
+      mascot.classList.add('mascot--hover');
+      // Re-trigger shake animation each hover
+      mascot.style.animation = 'none';
+      requestAnimationFrame(() => { mascot.style.animation = ''; });
+      clearTimeout(_mascotShakeTimer);
+      _mascotShakeTimer = setTimeout(() => {
+        mascot.classList.remove('mascot--hover');
+      }, 500);
+    } else {
+      clearTimeout(_mascotShakeTimer);
+      mascot.classList.remove('mascot--hover');
+    }
   }
 
   // ── Bottom nav clicks ──────────────────────────────────────────────────────
   function initBottomNav() {
-    document.querySelectorAll('.nav-item[data-nav]').forEach(item => {
+    const items = document.querySelectorAll('.nav-item[data-nav]');
+
+    items.forEach(item => {
       item.addEventListener('click', () => {
         const target = item.dataset.nav;
         if ((target === 'recipe' || target === 'story') && !state.uploadData) {
@@ -140,11 +172,22 @@ const AkiApp = (() => {
         }
         goTo(target);
       });
+
+      item.addEventListener('mouseenter', () => {
+        item.classList.add('nav-hovered');
+        triggerMascotHover(true);
+      });
+
+      item.addEventListener('mouseleave', () => {
+        item.classList.remove('nav-hovered');
+        triggerMascotHover(false);
+      });
     });
-    // Position mascot on first render
+
+    // Initial position after render
     requestAnimationFrame(() => {
       const active = document.querySelector('.nav-item.active');
-      updateMascot(active);
+      if (active) updateMascot(active);
     });
   }
 
