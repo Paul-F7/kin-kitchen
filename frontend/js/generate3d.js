@@ -168,8 +168,13 @@ function initScene(container) {
   animate();
 }
 
+var _panelLastUpdate = 0;
 function updatePositionPanel() {
   if (!positionPanel) return;
+  // Throttle to ~5 fps to avoid DOM thrash
+  var now = performance.now();
+  if (now - _panelLastUpdate < 200) return;
+  _panelLastUpdate = now;
   var lines = ingredientMeshes.map(function (mesh) {
     var label = mesh.userData.slotName || mesh.userData.ingredientName || '?';
     var p = mesh.position;

@@ -21,6 +21,8 @@ var INGREDIENT_POSITIONS = {
   butternut_squash_1: { x: -1.7433, y: 2.9802, z: -0.2553 },
   canned_corn_1:      { x: -1.1341, y: 3.1862, z: 0.5001 },
   chicken_stock_1:    { x: -1.7173, y: 3.2265, z: 0.1202 },
+  orange_pile_cubes_1: { x: 0.0685, y: 3.1045, z: -0.3929 },
+  diced_onions_1:      { x: 0.5000, y: 3.1000, z: -0.3000 },
 };
 
 // Per-ingredient scale overrides (uniform). Falls back to DEFAULT_SCALE.
@@ -33,6 +35,8 @@ var INGREDIENT_SCALES = {
   butternut_squash: 3.5300,
   canned_corn: 0.1694,
   chicken_stock: 0.2689,
+  orange_pile_cubes: 0.2956,
+  diced_onions: 0.3000,
 };
 var DEFAULT_SCALE = 0.5;
 
@@ -45,5 +49,7 @@ var INGREDIENT_ROTATIONS = {
   butternut_squash: { x: 0.0000, y:  0.0000, z: 0.0000 },
   canned_corn:      { x: 0.0000, y:  1.1315, z: 0.0000 },
   chicken_stock:    { x: -3.1416, y: 0.5964, z: -3.1416 },
+  orange_pile_cubes: { x: 0, y: 0, z: 0 },
+  diced_onions:      { x: 0, y: 0, z: 0 },
 };
 var DEFAULT_ROTATION = { x: 0, y: 0, z: 0 };

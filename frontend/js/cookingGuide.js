@@ -1,4 +1,4 @@
-/* global THREE */
+/* global THREE, Step1Chop, Step2Chop, INGREDIENT_POSITIONS, INGREDIENT_SCALES, INGREDIENT_ROTATIONS, DEFAULT_ROTATION */
 'use strict';
 
 /**
@@ -29,22 +29,44 @@ const CookingGuide = (() => {
 
   // 3D scene objects
   let _cuttingBoard = null;
+  let _orangePile   = null;
+  let _dicedOnionsMesh = null;
   let _knifeGroup   = null;
   let _spoonGroup   = null;
   let _spotGlow     = null;
   let _particles    = [];
   let _animType     = 'none';
   let _animT        = 0;
-  let _chopT        = 0;
   let _stirAngle    = 0;
+  let _chopWaiting  = false;  // true = waiting for user to click Start Cutting
 
   // Ingredient lerp system (move to board / return)
   let _activeLerps   = [];   // [{ mesh, from, to, t, duration }]
   let _origPositions = {};   // { slotName: {x,y,z} }
 
-  // Cutting board world-space center (ingredients land here when chopped)
-  const BOARD_CENTER = { x: -0.85, z: 0.38 };
-  const BOARD_Y      = 2.960;  // counter-level y for board top surface
+  // Cutting board world-space defaults
+  const BOARD_CENTER = { x: 0.0685, z: -0.2397 };
+  const BOARD_Y      = 3.0243;
+  const BOARD_ROT    = { x: -0.3714, y: 1.1136, z: 3.1083 };
+  const BOARD_SCALE  = 0.0035;
+
+  // Where the squash lands on the board for chopping
+  const CHOP_TARGET  = { x: 0.0690, y: 3.0300, z: -0.50 };
+
+  // Orange pile of cubes (replaces scattered cubes after chopping)
+  // Read from ingredientPositions.js so they can be tweaked via the Move gizmo
+  const _pileSlot = 'orange_pile_cubes_1';
+  const _pileKey  = 'orange_pile_cubes';
+  const PILE_POS   = INGREDIENT_POSITIONS[_pileSlot] || { x: 0.0685, y: 3.1045, z: -0.3929 };
+  const PILE_ROT   = INGREDIENT_ROTATIONS[_pileKey]  || DEFAULT_ROTATION;
+  const PILE_SCALE = INGREDIENT_SCALES[_pileKey]      || 0.2956;
+
+  // Diced onions pile
+  const _dicedOnionsSlot = 'diced_onions_1';
+  const _dicedOnionsKey  = 'diced_onions';
+  const DICED_ONIONS_POS   = INGREDIENT_POSITIONS[_dicedOnionsSlot] || { x: 0.5, y: 3.1, z: -0.3 };
+  const DICED_ONIONS_ROT   = INGREDIENT_ROTATIONS[_dicedOnionsKey]  || DEFAULT_ROTATION;
+  const DICED_ONIONS_SCALE = INGREDIENT_SCALES[_dicedOnionsKey]      || 0.3;
 
   // ── Ingredient emoji map ──────────────────────────────────────────────────
   const ING_EMOJI = {
@@ -324,60 +346,97 @@ const CookingGuide = (() => {
 
   function _destroyOverlay() { if (_overlayEl) { _overlayEl.remove(); _overlayEl = null; } }
 
-  // ── Cutting board ─────────────────────────────────────────────────────────
+  // ── Cutting board ────────────────────────────────────���────────────────────
   function _buildCuttingBoard() {
-    const g = new THREE.Group();
+    const glbLoader = new THREE.GLTFLoader();
+    glbLoader.load(
+      '/assets/3d/cutting-board.glb',
+      (gltf) => {
+        const g = gltf.scene;
+        g.traverse(c => {
+          if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; }
+        });
+        g.position.set(BOARD_CENTER.x, BOARD_Y, BOARD_CENTER.z);
+        g.rotation.set(BOARD_ROT.x, BOARD_ROT.y, BOARD_ROT.z);
+        g.scale.setScalar(BOARD_SCALE);
+        g.userData.slotName = '__cutting_board__';
+        _scene.add(g);
+        _cuttingBoard = g;
+        if (_meshes) _meshes.push(g);
+        console.log('[CookingGuide] cutting-board.glb loaded at', BOARD_CENTER);
+      },
+      undefined,
+      () => {
+        console.warn('[CookingGuide] cutting-board.glb failed, using fallback box');
+        const geo = new THREE.BoxGeometry(0.50, 0.022, 0.34);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x5C3010, roughness: 0.88 });
+        const g = new THREE.Mesh(geo, mat);
+        g.position.set(BOARD_CENTER.x, BOARD_Y, BOARD_CENTER.z);
+        g.castShadow = true; g.receiveShadow = true;
+        g.userData.slotName = '__cutting_board__';
+        _scene.add(g);
+        _cuttingBoard = g;
+        if (_meshes) _meshes.push(g);
+      }
+    );
+  }
 
-    // Main board — dark walnut
-    const boardMat  = new THREE.MeshStandardMaterial({ color: 0x5C3010, roughness: 0.88, metalness: 0 });
-    const board = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.022, 0.34), boardMat);
-    board.receiveShadow = true;
-    board.castShadow    = true;
-    g.add(board);
+  // ── Orange pile of cubes ─────────────────────────────────────────────────
+  function _buildOrangePile() {
+    const glbLoader = new THREE.GLTFLoader();
+    glbLoader.load(
+      '/assets/3d/orange-pile-cubes.glb',
+      (gltf) => {
+        const g = gltf.scene;
+        g.traverse(c => {
+          if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; }
+        });
+        g.position.set(PILE_POS.x, PILE_POS.y, PILE_POS.z);
+        g.rotation.set(PILE_ROT.x, PILE_ROT.y, PILE_ROT.z);
+        g.scale.setScalar(PILE_SCALE);
+        g.userData.slotName = _pileSlot;
+        g.userData.ingredientName = 'orange-pile-cubes';
+        _scene.add(g);
+        _orangePile = g;
+        if (_meshes) _meshes.push(g);
+        const box = new THREE.Box3().setFromObject(g);
+        const size = box.getSize(new THREE.Vector3());
+        console.log('[CookingGuide] orange-pile-cubes.glb loaded — world size:', size, 'pos:', PILE_POS);
+      },
+      undefined,
+      () => {
+        console.warn('[CookingGuide] orange-pile-cubes.glb failed to load');
+      }
+    );
+  }
 
-    // Grain lines running lengthwise (x direction)
-    const grainMat = new THREE.MeshStandardMaterial({ color: 0x7A4A1C, roughness: 0.91, metalness: 0 });
-    [-0.11, -0.04, 0.04, 0.11].forEach(z => {
-      const grain = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.0012, 0.007), grainMat);
-      grain.position.set(0, 0.012, z);
-      g.add(grain);
-    });
-
-    // Slightly raised edge border
-    const edgeMat = new THREE.MeshStandardMaterial({ color: 0x3D1E08, roughness: 0.92, metalness: 0 });
-    // Long edges
-    [[-0.246, 0, 0, 0.008, 0.024, 0.34], [0.246, 0, 0, 0.008, 0.024, 0.34]].forEach(([x, y, z, w, h, d]) => {
-      const e = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), edgeMat);
-      e.position.set(x, y, z);
-      g.add(e);
-    });
-    // Short edges
-    [[0, 0, -0.166, 0.50, 0.024, 0.008], [0, 0, 0.166, 0.50, 0.024, 0.008]].forEach(([x, y, z, w, h, d]) => {
-      const e = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), edgeMat);
-      e.position.set(x, y, z);
-      g.add(e);
-    });
-
-    // Handle tab on the right
-    const handleMat = new THREE.MeshStandardMaterial({ color: 0x4A2408, roughness: 0.90, metalness: 0 });
-    const tab = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.018, 0.06), handleMat);
-    tab.position.set(0.295, 0, 0.05);
-    g.add(tab);
-
-    // Rubber feet (small dark cylinders at corners)
-    const feetMat = new THREE.MeshStandardMaterial({ color: 0x1A1A1A, roughness: 0.95, metalness: 0 });
-    [[-0.20, -0.14], [-0.20, 0.14], [0.20, -0.14], [0.20, 0.14]].forEach(([fx, fz]) => {
-      const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.008, 10), feetMat);
-      foot.position.set(fx, -0.014, fz);
-      g.add(foot);
-    });
-
-    // Place on counter, slightly in front and to the right of the ingredient cluster
-    g.position.set(BOARD_CENTER.x, BOARD_Y, BOARD_CENTER.z);
-    g.castShadow    = true;
-    g.receiveShadow = true;
-    _scene.add(g);
-    _cuttingBoard = g;
+  // ── Diced onions pile ───────────────────────────────────────────────────
+  function _buildDicedOnions() {
+    const glbLoader = new THREE.GLTFLoader();
+    glbLoader.load(
+      '/assets/3d/diced_onions.glb',
+      (gltf) => {
+        const g = gltf.scene;
+        g.traverse(c => {
+          if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; }
+        });
+        g.position.set(DICED_ONIONS_POS.x, DICED_ONIONS_POS.y, DICED_ONIONS_POS.z);
+        g.rotation.set(DICED_ONIONS_ROT.x, DICED_ONIONS_ROT.y, DICED_ONIONS_ROT.z);
+        g.scale.setScalar(DICED_ONIONS_SCALE);
+        g.userData.slotName = _dicedOnionsSlot;
+        g.userData.ingredientName = 'diced_onions';
+        _scene.add(g);
+        _dicedOnionsMesh = g;
+        if (_meshes) _meshes.push(g);
+        const box = new THREE.Box3().setFromObject(g);
+        const size = box.getSize(new THREE.Vector3());
+        console.log('[CookingGuide] diced_onions.glb loaded — world size:', size, 'pos:', DICED_ONIONS_POS);
+      },
+      undefined,
+      () => {
+        console.warn('[CookingGuide] diced_onions.glb failed to load');
+      }
+    );
   }
 
   // ── Knife ─────────────────────────────────────────────────────────────────
@@ -469,12 +528,18 @@ const CookingGuide = (() => {
   }
 
   // Return all currently-boarded ingredients to their original positions
-  function _returnAllIngredients() {
+  // force=true hides piles too (used by reset/destroy)
+  function _returnAllIngredients(force) {
     Object.entries(_origPositions).forEach(([slot, orig]) => {
       const m = _getMesh(slot);
       if (m) _startLerp(m, orig, 0.7);
     });
     _origPositions = {};
+    // Only hide piles on explicit reset — progressive cooking keeps them visible
+    if (force) {
+      if (_orangePile) _orangePile.visible = false;
+      if (_dicedOnionsMesh) _dicedOnionsMesh.visible = false;
+    }
   }
 
   // Move the named ingredient to the cutting board (arc motion)
@@ -484,7 +549,8 @@ const CookingGuide = (() => {
     if (!_origPositions[slot]) {
       _origPositions[slot] = { x: m.position.x, y: m.position.y, z: m.position.z };
     }
-    _startLerp(m, { x: BOARD_CENTER.x, y: _origPositions[slot].y, z: BOARD_CENTER.z }, 0.75);
+    const bp = _cuttingBoard ? _cuttingBoard.position : { x: BOARD_CENTER.x, z: BOARD_CENTER.z };
+    _startLerp(m, { x: bp.x, y: _origPositions[slot].y, z: bp.z }, 0.75);
   }
 
   // ── Particle system ───────────────────────────────────────────────────────
@@ -606,20 +672,15 @@ const CookingGuide = (() => {
     if (_knifeGroup) _knifeGroup.visible = false;
     if (_spoonGroup) _spoonGroup.visible = false;
     _clearParticles();
-    _animType = type; _animT = 0; _chopT = 0; _stirAngle = 0;
+    if (typeof Step1Chop !== 'undefined') Step1Chop.cleanup();
+    if (typeof Step2Chop !== 'undefined') Step2Chop.cleanup();
+    _animType = type; _animT = 0; _stirAngle = 0;
 
     switch (type) {
       case 'chop':
-        if (_knifeGroup && ingPos) {
-          // Start knife above the board center (ingredient is lerping there)
-          _knifeGroup.position.set(BOARD_CENTER.x + 0.07, BOARD_Y + 0.58, BOARD_CENTER.z - 0.05);
-          _knifeGroup.visible = true;
-        }
-        // Move ingredient to board
-        {
-          const step = STEPS[_currentStep];
-          if (step && step.activeIngredients[0]) _moveToBoard(step.activeIngredients[0]);
-        }
+        // Don't auto-start — wait for user to press "Start Cutting"
+        _chopWaiting = true;
+        _showStartCuttingBtn();
         break;
       case 'stir':
         if (_spoonGroup && ingPos) {
@@ -634,33 +695,114 @@ const CookingGuide = (() => {
     }
   }
 
-  // ── Animation ticks ───────────────────────────────────────────────────────
-  function _tickChop(dt) {
-    if (!_knifeGroup) return;
-    _chopT += dt;
-    const CYCLE = 1.05;
-    const ph = _chopT % CYCLE;
+  // ── Start Cutting button (lets user position board/squash first) ────────
+  function _showStartCuttingBtn() {
+    _removeStartCuttingBtn();
+    const btn = document.createElement('button');
+    btn.id = 'cg-start-cutting';
+    btn.textContent = 'Start Cutting';
+    btn.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:10001;' +
+      'background:#f0c040;color:#1a1a1a;border:none;font:bold 15px sans-serif;padding:10px 28px;' +
+      'border-radius:8px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
+    btn.addEventListener('click', _beginChop);
+    document.body.appendChild(btn);
+  }
 
-    // Knife always tracks above the board center (where ingredient is landing)
-    const bx = BOARD_CENTER.x + 0.07;
-    const bz = BOARD_CENTER.z - 0.05;
-    const boardSurface = BOARD_Y + 0.022;
+  function _removeStartCuttingBtn() {
+    const el = document.getElementById('cg-start-cutting');
+    if (el) el.remove();
+  }
 
-    let ky, lean;
-    if (ph < 0.21) {
-      ky   = _lerp(boardSurface + 0.52, boardSurface + 0.08, ph / 0.21);
-      lean = _lerp(0.05, -0.20, ph / 0.21);
-    } else if (ph < 0.34) {
-      ky   = boardSurface + 0.08 + Math.sin((ph - 0.21) * 32) * 0.012;
-      lean = -0.20;
-    } else {
-      const rt = (ph - 0.34) / 0.71;
-      ky   = _lerp(boardSurface + 0.08, boardSurface + 0.52, rt);
-      lean = _lerp(-0.20, 0.05, rt);
+  // Onion chop target on the board
+  const ONION_CHOP_TARGET = { x: 0.0977, y: 3.0259, z: -0.3594 };
+  // Final scale for diced onions pile during step 2
+  const DICED_PILE_SCALE  = 0.2392;
+
+  function _beginChop() {
+    _removeStartCuttingBtn();
+    _chopWaiting = false;
+
+    const step = STEPS[_currentStep];
+    if (!step || !step.activeIngredients[0]) return;
+
+    const slot = step.activeIngredients[0];
+    const m = _getMesh(slot);
+    if (!m) return;
+
+    // Save original position for return later
+    if (!_origPositions[slot]) {
+      _origPositions[slot] = { x: m.position.x, y: m.position.y, z: m.position.z };
     }
 
-    _knifeGroup.position.set(bx, ky, bz);
-    _knifeGroup.rotation.x = lean;
+    // Reset cutting board to its known centre so step modules slide it in correctly
+    if (_cuttingBoard) {
+      _cuttingBoard.position.set(BOARD_CENTER.x, BOARD_Y, BOARD_CENTER.z);
+    }
+
+    // Step 2: Dice the onion — use Step2Chop
+    if (step.action === 'DICE' && typeof Step2Chop !== 'undefined') {
+      // Position the diced onions pile at the board (Step2Chop will show/scale it)
+      if (_dicedOnionsMesh) {
+        _dicedOnionsMesh.visible = false;
+        _dicedOnionsMesh.position.set(ONION_CHOP_TARGET.x, ONION_CHOP_TARGET.y, ONION_CHOP_TARGET.z);
+        _dicedOnionsMesh.scale.setScalar(0.001);
+      }
+
+      Step2Chop.start({
+        ingredient:     m,
+        knifeGroup:     _knifeGroup,
+        dicedOnions:    _dicedOnionsMesh,
+        cuttingBoard:   _cuttingBoard,
+        pileFinalScale: DICED_PILE_SCALE,
+        chopTarget:     ONION_CHOP_TARGET,
+        boardCenter:    { x: ONION_CHOP_TARGET.x, z: ONION_CHOP_TARGET.z },
+        boardY:         ONION_CHOP_TARGET.y,
+        origPosition:   _origPositions[slot],
+        onComplete:     function onDiceComplete() {
+          // Ingredient consumed — don't return it to shelf on step change
+          delete _origPositions[slot];
+          console.log('[CookingGuide] dice pipeline complete');
+        },
+      });
+      return;
+    }
+
+    // Step 1 (and other chop steps): use Step1Chop
+    if (_orangePile) {
+      _orangePile.visible = false;
+      _orangePile.position.set(PILE_POS.x, PILE_POS.y, PILE_POS.z);
+      _orangePile.scale.setScalar(0.001);
+    }
+    if (_dicedOnionsMesh) {
+      _dicedOnionsMesh.visible = false;
+    }
+
+    if (typeof Step1Chop !== 'undefined') {
+      Step1Chop.start({
+        ingredient:     m,
+        knifeGroup:     _knifeGroup,
+        orangePile:     _orangePile,
+        cuttingBoard:   _cuttingBoard,
+        pileFinalScale: PILE_SCALE,
+        chopTarget:     CHOP_TARGET,
+        boardCenter:    { x: CHOP_TARGET.x, z: CHOP_TARGET.z },
+        boardY:         CHOP_TARGET.y,
+        origPosition:   _origPositions[slot],
+        onComplete:     function onChopComplete() {
+          // Ingredient consumed — don't return it to shelf on step change
+          delete _origPositions[slot];
+          console.log('[CookingGuide] chop pipeline complete');
+        },
+      });
+    }
+  }
+
+  // ── Animation ticks ───────────────────────────────────────────────────────
+  function _tickChop(dt) {
+    if (_chopWaiting) return;
+    // Step1Chop orchestrates squash chopping; Step2Chop orchestrates onion dicing
+    if (typeof Step1Chop !== 'undefined') Step1Chop.tick(dt);
+    if (typeof Step2Chop !== 'undefined') Step2Chop.tick(dt);
   }
 
   function _tickStir(dt, base) {
@@ -911,7 +1053,7 @@ const CookingGuide = (() => {
   function _renderCompletion() {
     _clearLights();
     _setAllOpacity(1);
-    _returnAllIngredients();
+    _returnAllIngredients(true);
     _setAnimType('none', null);
     _chimeFinale();
     if (_spotGlow) _spotGlow.children.forEach(c => { if (c.material) c.material.opacity = 0; });
@@ -1021,10 +1163,14 @@ const CookingGuide = (() => {
     _meshes = meshes || []; _currentStep = 0; _initialized = true;
 
     _buildCuttingBoard();
+    _buildOrangePile();
+    _buildDicedOnions();
     _buildKnife();
     _buildSpoon();
     _buildSpotGlow();
     _buildOverlay();
+    if (typeof Step1Chop !== 'undefined') Step1Chop.init(_scene);
+    if (typeof Step2Chop !== 'undefined') Step2Chop.init(_scene);
     _renderStep(0, true);
     _chime();
 
@@ -1053,7 +1199,8 @@ const CookingGuide = (() => {
   function reset() {
     if (_autoAdvanceTimer) { clearTimeout(_autoAdvanceTimer); _autoAdvanceTimer = null; }
     if (_stepAudio) { _stepAudio.pause(); _stepAudio = null; }
-    _clearLights(); _returnAllIngredients(); _setAnimType('none', null);
+    _clearLights(); _returnAllIngredients(true); _setAnimType('none', null);
+    _removeStartCuttingBtn(); _chopWaiting = false;
     _currentStep = 0; _countdownStart = null;
     _destroyOverlay(); _buildOverlay();
     _renderStep(0, true); _chime();
@@ -1064,18 +1211,26 @@ const CookingGuide = (() => {
     if (_animId) { cancelAnimationFrame(_animId); _animId = null; }
     if (_autoAdvanceTimer) { clearTimeout(_autoAdvanceTimer); _autoAdvanceTimer = null; }
     if (_stepAudio) { _stepAudio.pause(); _stepAudio = null; }
-    _clearLights(); _clearParticles(); _returnAllIngredients();
+    _clearLights(); _clearParticles(); _returnAllIngredients(true);
+    _removeStartCuttingBtn(); _chopWaiting = false;
+    if (typeof Step1Chop !== 'undefined') Step1Chop.destroy();
+    if (typeof Step2Chop !== 'undefined') Step2Chop.destroy();
     _destroyOverlay();
 
     [_cuttingBoard, _knifeGroup, _spoonGroup, _spotGlow].forEach(obj => {
       if (!obj) return;
       _scene.remove(obj);
+      // Remove board from selectable meshes
+      if (obj === _cuttingBoard && _meshes) {
+        const idx = _meshes.indexOf(obj);
+        if (idx !== -1) _meshes.splice(idx, 1);
+      }
       obj.traverse(c => {
         if (c.geometry) c.geometry.dispose();
         if (c.material) c.material.dispose();
       });
     });
-    _cuttingBoard = _knifeGroup = _spoonGroup = _spotGlow = null;
+    _cuttingBoard = _knifeGroup = _spoonGroup = _spotGlow = _dicedOnionsMesh = null;
 
     if (_audioCtx) { try { _audioCtx.close(); } catch (_) {} _audioCtx = null; }
     _scene = _camera = _renderer = _meshes = null;
