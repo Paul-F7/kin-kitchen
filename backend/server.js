@@ -62,16 +62,19 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
-// ── Start ────────────────────────────────────────────────────────────────────
-const server = app.listen(PORT, () =>
-  console.log(`[server] http://localhost:${PORT}`)
-);
+// ── Export for Vercel serverless ─────────────────────────────────────────────
+module.exports = app;
 
-// ── Graceful shutdown ────────────────────────────────────────────────────────
-function shutdown(signal) {
-  console.log(`[server] ${signal} received — shutting down`);
-  server.close(() => { console.log('[server] Closed.'); process.exit(0); });
-  setTimeout(() => process.exit(1), 5000).unref();
+// ── Start (local dev only) ────────────────────────────────────────────────────
+if (require.main === module) {
+  const server = app.listen(PORT, () =>
+    console.log(`[server] http://localhost:${PORT}`)
+  );
+  function shutdown(signal) {
+    console.log(`[server] ${signal} received — shutting down`);
+    server.close(() => { console.log('[server] Closed.'); process.exit(0); });
+    setTimeout(() => process.exit(1), 5000).unref();
+  }
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT',  () => shutdown('SIGINT'));
 }
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT',  () => shutdown('SIGINT'));

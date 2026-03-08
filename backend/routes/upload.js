@@ -8,7 +8,8 @@ const { analyzeMedia }               = require('../services/gemini');
 const { matchRecipes }               = require('../services/recipe-matcher');
 
 // ── Constants ────────────────────────────────────────────────────────────────
-const UPLOAD_DIR         = path.join(__dirname, '..', 'uploads');
+// Use /tmp on Vercel (read-only filesystem), local uploads/ otherwise
+const UPLOAD_DIR         = process.env.VERCEL ? '/tmp' : path.join(__dirname, '..', 'uploads');
 const MAX_FILE_MB        = 100;
 const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',

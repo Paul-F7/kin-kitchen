@@ -426,7 +426,7 @@ const CookingGuide = (() => {
   function _buildCuttingBoard() {
     const glbLoader = new THREE.GLTFLoader();
     glbLoader.load(
-      '/assets/3d/cutting-board.glb',
+      assetUrl('/assets/3d/cutting-board.glb'),
       (gltf) => {
         const g = gltf.scene;
         g.traverse(c => {
@@ -463,7 +463,7 @@ const CookingGuide = (() => {
   function _buildOrangePile() {
     const glbLoader = new THREE.GLTFLoader();
     glbLoader.load(
-      '/assets/3d/orange-pile-cubes.glb',
+      assetUrl('/assets/3d/orange-pile-cubes.glb'),
       (gltf) => {
         const g = gltf.scene;
         g.traverse(c => {
@@ -493,7 +493,7 @@ const CookingGuide = (() => {
   function _buildDicedOnions() {
     const glbLoader = new THREE.GLTFLoader();
     glbLoader.load(
-      '/assets/3d/diced_onions.glb',
+      assetUrl('/assets/3d/diced_onions.glb'),
       (gltf) => {
         const g = gltf.scene;
         g.traverse(c => {
@@ -523,7 +523,7 @@ const CookingGuide = (() => {
   function _buildMincedGarlic() {
     const glbLoader = new THREE.GLTFLoader();
     glbLoader.load(
-      '/assets/3d/minced-garlic.glb',
+      assetUrl('/assets/3d/minced-garlic.glb'),
       (gltf) => {
         const g = gltf.scene;
         g.traverse(c => {
@@ -553,7 +553,7 @@ const CookingGuide = (() => {
   function _buildPot() {
     const glbLoader = new THREE.GLTFLoader();
     glbLoader.load(
-      '/assets/3d/pot.glb',
+      assetUrl('/assets/3d/pot.glb'),
       (gltf) => {
         const g = gltf.scene;
         g.traverse(c => {
@@ -583,7 +583,7 @@ const CookingGuide = (() => {
   function _buildStew() {
     const glbLoader = new THREE.GLTFLoader();
     glbLoader.load(
-      '/assets/3d/stew.glb',
+      assetUrl('/assets/3d/stew.glb'),
       (gltf) => {
         const g = gltf.scene;
         g.traverse(c => {
@@ -1409,7 +1409,7 @@ const CookingGuide = (() => {
     // Load the soup model
     const soupLoader = new THREE.GLTFLoader();
     soupLoader.load(
-      '/assets/3d/vegetable_soup.glb',
+      assetUrl('/assets/3d/vegetable_soup.glb'),
       (gltf) => {
         const soup = gltf.scene;
         soup.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });

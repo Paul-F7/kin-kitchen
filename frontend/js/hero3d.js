@@ -96,7 +96,7 @@ const Hero3d = (() => {
     if (!Loader) { _buildCityFallback(); return; }
 
     // Single centred model, bigger scale
-    _loadGLB('/assets/3d/residential_buildings_ancient_villages.glb', 0, _buildCityFallback);
+    _loadGLB(assetUrl('/assets/3d/residential_buildings_ancient_villages.glb'), 0, _buildCityFallback);
   }
 
   // ── Procedural city fallback ───────────────────────────────────────────────

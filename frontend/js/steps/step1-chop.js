@@ -112,7 +112,7 @@ const Step1Chop = (() => {
 
     const loader = new THREE.GLTFLoader();
     loader.load(
-      '/assets/3d/orange-cube.glb',
+      assetUrl('/assets/3d/orange-cube.glb'),
       (gltf) => {
         _cubeTemplate = gltf.scene;
         _cubeTemplate.traverse(c => {

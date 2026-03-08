@@ -2,6 +2,7 @@
 'use strict';
 
 const ASSETS_PATH = '/assets/3d';
+const _assetUrl = (p) => (typeof assetUrl === 'function' ? assetUrl(p) : p);
 const CAMERA_STORAGE_KEY = 'kitchen3d_camera';
 const loader = new THREE.GLTFLoader();
 
@@ -211,7 +212,7 @@ async function launchWebXR() {
 function loadKitchen() {
   return new Promise((resolve, reject) => {
     loader.load(
-      `${ASSETS_PATH}/kitchen2.glb`,
+      _assetUrl(`${ASSETS_PATH}/kitchen2.glb`),
       (gltf) => {
         const kitchen = gltf.scene;
         kitchen.traverse((child) => {
@@ -247,7 +248,7 @@ function loadIngredient(name, position) {
     const normalizedName = name.toLowerCase().trim();
     const configKey = normalizedName.replace(/-/g, '_');
     loader.load(
-      `${ASSETS_PATH}/${normalizedName}.glb`,
+      _assetUrl(`${ASSETS_PATH}/${normalizedName}.glb`),
       (gltf) => {
         const model = gltf.scene;
         model.position.copy(position);
